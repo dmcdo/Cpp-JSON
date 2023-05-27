@@ -1,3 +1,6 @@
+#ifndef CPP_JSON_HPP
+#define CPP_JSON_HPP
+
 #include <exception>
 #include <string>
 
@@ -212,3 +215,5 @@ namespace JSON
         UnknownInternalException();
     };
 }
+
+#endif
