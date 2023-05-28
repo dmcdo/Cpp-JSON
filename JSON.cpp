@@ -394,6 +394,11 @@ const char *JSON::Object::_initialize(const char *s)
     int line = 1;
     std::vector<JSON::_Node *> nodes;
 
+    if (s == NULL)
+    {
+        throw DecodeException(0);
+    }
+
     // Parse JSON String
     try
     {
@@ -601,7 +606,7 @@ JSON::Array *JSON::Object::get_array(const char *key)
     return _get(key, true, JSON::ARRAY)->_array;
 }
 
-std::string JSON::Object::get_string(const char *key)
+std::string &JSON::Object::get_string(const char *key)
 {
     return *_get(key, true, JSON::STRING)->_string;
 }
@@ -636,7 +641,7 @@ JSON::Array *JSON::Object::get_array(std::string &key)
     return _get(key.c_str(), true, JSON::ARRAY)->_array;
 }
 
-std::string JSON::Object::get_string(std::string &key)
+std::string &JSON::Object::get_string(std::string &key)
 {
     return *_get(key.c_str(), true, JSON::STRING)->_string;
 }
@@ -888,6 +893,11 @@ const char *JSON::Array::_initialize(const char *s)
     int line = 1;
     std::vector<JSON::_Node *> nodes;
 
+    if (s == NULL)
+    {
+        throw DecodeException(0);
+    }
+
     s = _cstring_next_non_whitespace(s, &line);
     if (*s != '[')
     {
@@ -1038,7 +1048,7 @@ const char *JSON::Array::get_cstring(size_t i)
     return _get(i, true, JSON::STRING)->_string->c_str();
 }
 
-std::string JSON::Array::get_string(size_t i)
+std::string &JSON::Array::get_string(size_t i)
 {
     return *_get(i, true, JSON::STRING)->_string;
 }

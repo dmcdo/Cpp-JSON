@@ -83,8 +83,8 @@ namespace JSON
         JSON::Object *get_object(std::string &key);
         JSON::Array *get_array(const char *key);
         JSON::Array *get_array(std::string &key);
-        std::string get_string(const char *key);
-        std::string get_string(std::string &key);
+        std::string &get_string(const char *key);
+        std::string &get_string(std::string &key);
         const char *get_cstring(const char *key);
         const char *get_cstring(std::string &key);
         double get_number(const char *key);
@@ -150,7 +150,7 @@ namespace JSON
 
         JSON::Object *get_object(size_t index);
         JSON::Array *get_array(size_t index);
-        std::string get_string(size_t index);
+        std::string &get_string(size_t index);
         const char *get_cstring(size_t index);
         double get_number(size_t index);
         bool get_boolean(size_t index);
