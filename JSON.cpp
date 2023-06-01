@@ -23,19 +23,6 @@ size_t _cstring_hash(const char *s)
     return x ^ i;
 }
 
-const char *_cstring_next_non_whitespace(const char *s, int *line)
-{
-    for (; isspace(*s); s++)
-    {
-        if (*s == '\n')
-        {
-            *line += 1;
-        }
-    }
-
-    return s;
-}
-
 const char *_json_type_to_cstring(JSON::Type type)
 {
     switch (type)
@@ -118,7 +105,7 @@ std::string _dump_string(std::string &src)
 /*
  * Parsing of primitive types
  */
-const char *__json_consume_phrase(const char *s, const char *phrase, int line)
+const char *__consume_phrase(const char *s, const char *phrase, int line)
 {
     for (const char *p = phrase; *p; p++, s++)
     {
@@ -130,11 +117,11 @@ const char *__json_consume_phrase(const char *s, const char *phrase, int line)
 
     return s;
 }
-#define _JSON_CONSUME_NULL(s, line) (__json_consume_phrase(s, "null", line))
-#define _JSON_CONSUME_TRUE(s, line) (__json_consume_phrase(s, "true", line))
-#define _JSON_CONSUME_FALSE(s, line) (__json_consume_phrase(s, "false", line))
+#define _CONSUME_NULL(s, line) (__consume_phrase(s, "null", line))
+#define _CONSUME_TRUE(s, line) (__consume_phrase(s, "true", line))
+#define _CONSUME_FALSE(s, line) (__consume_phrase(s, "false", line))
 
-const char *_json_consume_number(const char *s, double *x, int line)
+const char *_consume_number(const char *s, double *x, int line)
 {
     std::string buffer;
     if (*s == '-')
@@ -181,7 +168,7 @@ const char *_json_consume_number(const char *s, double *x, int line)
     return s;
 }
 
-const char *_json_consume_string(const char *s, std::string **r, int line)
+const char *_consume_string(const char *s, std::string **r, int line)
 {
     std::string *p = *r = new std::string();
 
@@ -292,6 +279,19 @@ end_of_string:
     return s + 1;
 }
 
+const char *_consume_whitespace(const char *s, int *line)
+{
+    for (; isspace(*s); s++)
+    {
+        if (*s == '\n')
+        {
+            *line += 1;
+        }
+    }
+
+    return s;
+}
+
 /*
  * _Node
  */
@@ -390,7 +390,7 @@ const char *JSON::Object::_initialize(const char *s)
 
     try
     {
-        s = _cstring_next_non_whitespace(s, &line);
+        s = _consume_whitespace(s, &line);
         if (*s == '[')
         {
             _is_array = true;
@@ -404,12 +404,12 @@ const char *JSON::Object::_initialize(const char *s)
             throw JSON::DecodeException(line);
         }
 
-        s = _cstring_next_non_whitespace(s + 1, &line);
+        s = _consume_whitespace(s + 1, &line);
         if (*s != (_is_array ? ']' : '}'))
         {
             while (true)
             {
-                s = _cstring_next_non_whitespace(s, &line);
+                s = _consume_whitespace(s, &line);
 
                 // Anticipate next node
                 JSON::_Node *node = new JSON::_Node();
@@ -427,15 +427,15 @@ const char *JSON::Object::_initialize(const char *s)
                         throw JSON::DecodeException(line);
                     }
 
-                    s = _json_consume_string(s, &node->_key, line);
-                    s = _cstring_next_non_whitespace(s, &line);
+                    s = _consume_string(s, &node->_key, line);
+                    s = _consume_whitespace(s, &line);
                     if (*s != ':')
                     {
                         throw JSON::DecodeException(line);
                     }
                     else
                     {
-                        s = _cstring_next_non_whitespace(s + 1, &line);
+                        s = _consume_whitespace(s + 1, &line);
                     }
                 }
 
@@ -443,21 +443,21 @@ const char *JSON::Object::_initialize(const char *s)
                 switch (*s)
                 {
                 case 't':
-                    s = _JSON_CONSUME_TRUE(s, line);
+                    s = _CONSUME_TRUE(s, line);
                     node->_type = JSON::BOOLEAN;
                     node->_boolean = true;
                     break;
                 case 'f':
-                    s = _JSON_CONSUME_FALSE(s, line);
+                    s = _CONSUME_FALSE(s, line);
                     node->_type = JSON::BOOLEAN;
                     node->_boolean = false;
                     break;
                 case 'n':
-                    s = _JSON_CONSUME_NULL(s, line);
+                    s = _CONSUME_NULL(s, line);
                     node->_type = JSON::JSON_NULL;
                     break;
                 case '"':
-                    s = _json_consume_string(s, &node->_string, line);
+                    s = _consume_string(s, &node->_string, line);
                     node->_type = JSON::STRING;
                     break;
                 case '0':
@@ -471,7 +471,7 @@ const char *JSON::Object::_initialize(const char *s)
                 case '8':
                 case '9':
                 case '-':
-                    s = _json_consume_number(s, &node->_number, line);
+                    s = _consume_number(s, &node->_number, line);
                     node->_type = JSON::NUMBER;
                     break;
                 case '{':
@@ -483,7 +483,7 @@ const char *JSON::Object::_initialize(const char *s)
                     throw JSON::DecodeException(line);
                 }
 
-                s = _cstring_next_non_whitespace(s, &line);
+                s = _consume_whitespace(s, &line);
                 if (*s == (_is_array ? ']' : '}'))
                 {
                     s++;
