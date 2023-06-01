@@ -14,7 +14,6 @@ namespace JSON
     {
         JSON_NULL = 0,
         OBJECT,
-        ARRAY,
         STRING,
         NUMBER,
         BOOLEAN
@@ -47,13 +46,10 @@ namespace JSON
         class Iterator
         {
         private:
-            size_t _size;
-            size_t _index;
-            JSON::_Node **_map;
-            JSON::_Node *_node;
+            JSON::_Node **_p;
 
         public:
-            Iterator(size_t, size_t, JSON::_Node **, JSON::_Node *);
+            Iterator(JSON::_Node **);
             Iterator &operator++();
             Iterator operator++(int);
             bool operator==(const Iterator &other);
@@ -61,13 +57,6 @@ namespace JSON
             std::string &operator*();
         };
 
-    private:
-        size_t _size;
-        JSON::_Node **_map;
-        JSON::_Node *_get(const char *, bool, Type);
-        const char *_initialize(const char *);
-
-    public:
         Object(const char *s);
         Object(std::string &s);
         Object(const char *, const char **);
@@ -78,94 +67,55 @@ namespace JSON
         JSON::Object::Iterator end();
 
         size_t size();
+        bool is_array();
 
         JSON::Object *get_object(const char *key);
         JSON::Object *get_object(std::string &key);
-        JSON::Array *get_array(const char *key);
-        JSON::Array *get_array(std::string &key);
+        JSON::Object *get_object(int index);
         std::string &get_string(const char *key);
         std::string &get_string(std::string &key);
+        std::string &get_string(int index);
         const char *get_cstring(const char *key);
         const char *get_cstring(std::string &key);
+        const char *get_cstring(int index);
         double get_number(const char *key);
         double get_number(std::string &key);
+        double get_number(int index);
         bool get_boolean(const char *key);
         bool get_boolean(std::string &key);
+        bool get_boolean(int index);
 
         JSON::Type get_type(const char *key);
         JSON::Type get_type(std::string &key);
+        JSON::Type get_type(int index);
         bool is_object(const char *key);
         bool is_object(std::string &key);
-        bool is_array(const char *key);
-        bool is_array(std::string &key);
+        bool is_object(int index);
         bool is_string(const char *key);
         bool is_string(std::string &key);
+        bool is_string(int index);
         bool is_number(const char *key);
         bool is_number(std::string &key);
+        bool is_number(int index);
         bool is_boolean(const char *key);
         bool is_boolean(std::string &key);
+        bool is_boolean(int index);
         bool is_null(const char *key);
         bool is_null(std::string &key);
+        bool is_numm(int index);
 
         std::string to_string();
         std::string to_string(unsigned int indent);
         std::string to_string(unsigned int indent, unsigned int depth);
-    };
-
-    class Array
-    {
-    public:
-        class Iterator
-        {
-        private:
-            JSON::_Node **_begin;
-            JSON::_Node **_node;
-
-        public:
-            Iterator(JSON::_Node **, JSON::_Node **);
-            Iterator &operator++();
-            Iterator operator++(int);
-            bool operator==(const Iterator &other);
-            bool operator!=(const Iterator &other);
-            size_t operator*();
-        };
 
     private:
+        bool _is_array;
         size_t _size;
-        JSON::_Node **_list;
-        JSON::_Node *_get(size_t, bool, Type);
+        JSON::_Node **_map;
+        JSON::_Node **_ord;
+        JSON::_Node *_get(const char *, Type);
+        JSON::_Node *_get_by_index(int, Type);
         const char *_initialize(const char *);
-
-    public:
-        Array(const char *s);
-        Array(std::string &s);
-        Array(const char *, const char **);
-        Array(const Array &);
-        ~Array();
-
-        JSON::Array::Iterator begin();
-        JSON::Array::Iterator end();
-
-        size_t size();
-
-        JSON::Object *get_object(size_t index);
-        JSON::Array *get_array(size_t index);
-        std::string &get_string(size_t index);
-        const char *get_cstring(size_t index);
-        double get_number(size_t index);
-        bool get_boolean(size_t index);
-
-        JSON::Type get_type(size_t index);
-        bool is_object(size_t index);
-        bool is_array(size_t index);
-        bool is_string(size_t index);
-        bool is_number(size_t index);
-        bool is_boolean(size_t index);
-        bool is_null(size_t index);
-
-        std::string to_string();
-        std::string to_string(unsigned int indent);
-        std::string to_string(unsigned int indent, unsigned int depth);
     };
 
     class JSONException : public std::exception
@@ -188,13 +138,16 @@ namespace JSON
     class InvalidIndexException : public JSONException
     {
     public:
-        InvalidIndexException(size_t);
+        InvalidIndexException(int);
     };
 
     class WrongTypeException : public JSONException
     {
+    private:
+        void _initialize(const char *, Type, Type);
     public:
         WrongTypeException(const char *, Type, Type);
+        WrongTypeException(std::string &, Type, Type);
     };
 
     class DecodeException : public JSONException

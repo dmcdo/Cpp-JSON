@@ -44,8 +44,6 @@ const char *_json_type_to_cstring(JSON::Type type)
         return "Null";
     case JSON::OBJECT:
         return "Object";
-    case JSON::ARRAY:
-        return "Array";
     case JSON::STRING:
         return "String";
     case JSON::NUMBER:
@@ -322,9 +320,6 @@ JSON::_Node::_Node(const _Node &other)
     case JSON::OBJECT:
         _object = new JSON::Object(*other._object);
         break;
-    case JSON::ARRAY:
-        _array = new JSON::Array(*other._array);
-        break;
     case JSON::STRING:
         _string = new std::string(*other._string);
         break;
@@ -352,12 +347,6 @@ JSON::_Node::~_Node()
         if (_object != NULL)
         {
             delete _object;
-        }
-        break;
-    case JSON::ARRAY:
-        if (_array != NULL)
-        {
-            delete _array;
         }
         break;
     case JSON::STRING:
@@ -391,104 +380,127 @@ JSON::Object::Object(const char *s, const char **r)
 
 const char *JSON::Object::_initialize(const char *s)
 {
+    if (s == NULL)
+    {
+        throw JSON::DecodeException(0);
+    }
+
     int line = 1;
     std::vector<JSON::_Node *> nodes;
 
-    if (s == NULL)
-    {
-        throw DecodeException(0);
-    }
-
-    // Parse JSON String
     try
     {
         s = _cstring_next_non_whitespace(s, &line);
-        if (*s != '{')
+        if (*s == '[')
+        {
+            _is_array = true;
+        }
+        else if (*s == '{')
+        {
+            _is_array = false;
+        }
+        else
         {
             throw JSON::DecodeException(line);
         }
 
-        s++;
-        while (true)
+        s = _cstring_next_non_whitespace(s + 1, &line);
+        if (*s != (_is_array ? ']' : '}'))
         {
-            s = _cstring_next_non_whitespace(s, &line);
-            if (*s == '}')
+            while (true)
             {
-                s++;
-                break;
-            }
-            if (*s != '"')
-            {
-                throw JSON::DecodeException(line);
-            }
+                s = _cstring_next_non_whitespace(s, &line);
 
-            JSON::_Node *node = new JSON::_Node();
-            s = _json_consume_string(s, &node->_key, line);
-            s = _cstring_next_non_whitespace(s, &line);
-            if (*s != ':')
-            {
-                throw JSON::DecodeException(line);
-            }
+                // Anticipate next node
+                JSON::_Node *node = new JSON::_Node();
+                nodes.push_back(node);
 
-            s = _cstring_next_non_whitespace(s + 1, &line);
-            switch (*s)
-            {
-            case 't':
-                s = _JSON_CONSUME_TRUE(s, line);
-                node->_type = JSON::BOOLEAN;
-                node->_boolean = true;
-                break;
-            case 'f':
-                s = _JSON_CONSUME_FALSE(s, line);
-                node->_type = JSON::BOOLEAN;
-                node->_boolean = false;
-                break;
-            case 'n':
-                s = _JSON_CONSUME_NULL(s, line);
-                node->_type = JSON::JSON_NULL;
-                break;
-            case '"':
-                s = _json_consume_string(s, &node->_string, line);
-                node->_type = JSON::STRING;
-                break;
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-            case '-':
-                s = _json_consume_number(s, &node->_number, line);
-                node->_type = JSON::NUMBER;
-                break;
-            case '{':
-                node->_type = JSON::OBJECT;
-                node->_object = new Object(s, &s);
-                break;
-            case '[':
-                node->_type = JSON::ARRAY;
-                node->_array = new Array(s, &s);
-                break;
+                // Parse key
+                if (_is_array)
+                {
+                    node->_key = new std::string(std::to_string(nodes.size() - 1));
+                }
+                else
+                {
+                    if (*s != '"')
+                    {
+                        throw JSON::DecodeException(line);
+                    }
 
-            default:
-                throw JSON::DecodeException(line);
-            }
+                    s = _json_consume_string(s, &node->_key, line);
+                    s = _cstring_next_non_whitespace(s, &line);
+                    if (*s != ':')
+                    {
+                        throw JSON::DecodeException(line);
+                    }
+                    else
+                    {
+                        s = _cstring_next_non_whitespace(s + 1, &line);
+                    }
+                }
 
-            node->_next = NULL;
-            nodes.push_back(node);
+                // Parse value
+                switch (*s)
+                {
+                case 't':
+                    s = _JSON_CONSUME_TRUE(s, line);
+                    node->_type = JSON::BOOLEAN;
+                    node->_boolean = true;
+                    break;
+                case 'f':
+                    s = _JSON_CONSUME_FALSE(s, line);
+                    node->_type = JSON::BOOLEAN;
+                    node->_boolean = false;
+                    break;
+                case 'n':
+                    s = _JSON_CONSUME_NULL(s, line);
+                    node->_type = JSON::JSON_NULL;
+                    break;
+                case '"':
+                    s = _json_consume_string(s, &node->_string, line);
+                    node->_type = JSON::STRING;
+                    break;
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                case '-':
+                    s = _json_consume_number(s, &node->_number, line);
+                    node->_type = JSON::NUMBER;
+                    break;
+                case '{':
+                case '[':
+                    node->_type = JSON::OBJECT;
+                    node->_object = new Object(s, &s);
+                    break;
+                default:
+                    throw JSON::DecodeException(line);
+                }
 
-            s = _cstring_next_non_whitespace(s, &line);
-            if (*s == ',')
-            {
-                s++;
+                s = _cstring_next_non_whitespace(s, &line);
+                if (*s == (_is_array ? ']' : '}'))
+                {
+                    s++;
+                    break;
+                }
+                else if (*s == ',')
+                {
+                    s++;
+                }
+                else
+                {
+                    throw JSON::DecodeException(line);
+                }
             }
         }
     }
-    catch (DecodeException &ex)
+    catch (JSON::DecodeException &ex)
     {
         for (auto &node : nodes)
         {
@@ -498,17 +510,19 @@ const char *JSON::Object::_initialize(const char *s)
         throw ex;
     }
 
-    // Reorganize vector of values into hash map
+
     _size = nodes.size();
     _map = new JSON::_Node *[_size]();
+    _ord = new JSON::_Node *[_size]();
 
-    for (auto &node : nodes)
+    for (size_t i = 0; i < nodes.size(); i++)
     {
-        size_t index = _cstring_hash(node->_key->c_str()) % _size;
+        _ord[i] = nodes[i];
 
+        size_t index = _cstring_hash(nodes[i]->_key->c_str()) % _size;
         if (_map[index] == NULL)
         {
-            _map[index] = node;
+            _map[index] = nodes[i];
         }
         else
         {
@@ -516,7 +530,7 @@ const char *JSON::Object::_initialize(const char *s)
             for (parent = _map[index]; parent->_next != NULL; parent = parent->_next)
                 ;
 
-            parent->_next = node;
+            parent->_next = nodes[i];
         }
     }
 
@@ -527,9 +541,12 @@ JSON::Object::Object(const JSON::Object &other)
 {
     _size = other._size;
     _map = new JSON::_Node *[_size];
+    _ord = new JSON::_Node *[_size];
 
     for (size_t i = 0; i < _size; i++)
     {
+        _ord[i] = new JSON::_Node(*other._ord[i]);
+
         if (other._map[i] == NULL)
         {
             _map[i] = NULL;
@@ -552,15 +569,10 @@ JSON::Object::~Object()
 {
     for (size_t i = 0; i < _size; i++)
     {
-        JSON::_Node *cur = _map[i];
-        while (cur != NULL)
-        {
-            JSON::_Node *next = cur->_next;
-            delete cur;
-            cur = next;
-        }
+        delete _ord[i];
     }
 
+    delete[] _ord;
     delete[] _map;
 }
 
@@ -569,7 +581,12 @@ size_t JSON::Object::size()
     return _size;
 }
 
-JSON::_Node *JSON::Object::_get(const char *key, bool check_type, JSON::Type expected_type)
+bool JSON::Object::is_array()
+{
+    return _is_array;
+}
+
+JSON::_Node *JSON::Object::_get(const char *key, JSON::Type expected_type)
 {
     if (_size == 0 || key == NULL)
     {
@@ -582,7 +599,7 @@ JSON::_Node *JSON::Object::_get(const char *key, bool check_type, JSON::Type exp
     {
         if (strcmp(key, cur->_key->c_str()) == 0)
         {
-            if (cur->_type == expected_type || !check_type)
+            if (cur->_type == expected_type || expected_type == JSON::JSON_NULL)
             {
                 return cur;
             }
@@ -598,82 +615,118 @@ JSON::_Node *JSON::Object::_get(const char *key, bool check_type, JSON::Type exp
 
 JSON::Object *JSON::Object::get_object(const char *key)
 {
-    return _get(key, true, JSON::OBJECT)->_object;
-}
-
-JSON::Array *JSON::Object::get_array(const char *key)
-{
-    return _get(key, true, JSON::ARRAY)->_array;
+    return _get(key, JSON::OBJECT)->_object;
 }
 
 std::string &JSON::Object::get_string(const char *key)
 {
-    return *_get(key, true, JSON::STRING)->_string;
+    return *_get(key, JSON::STRING)->_string;
 }
 
 const char *JSON::Object::get_cstring(const char *key)
 {
-    return _get(key, true, JSON::STRING)->_string->c_str();
+    return _get(key, JSON::STRING)->_string->c_str();
 }
 
 double JSON::Object::get_number(const char *key)
 {
-    return _get(key, true, JSON::NUMBER)->_number;
+    return _get(key, JSON::NUMBER)->_number;
 }
 
 bool JSON::Object::get_boolean(const char *key)
 {
-    return _get(key, true, JSON::BOOLEAN)->_boolean;
+    return _get(key, JSON::BOOLEAN)->_boolean;
 }
 
 JSON::Type JSON::Object::get_type(const char *key)
 {
-    return _get(key, false, JSON::JSON_NULL)->_type;
+    return _get(key, JSON::JSON_NULL)->_type;
 }
 
 JSON::Object *JSON::Object::get_object(std::string &key)
 {
-    return _get(key.c_str(), true, JSON::OBJECT)->_object;
-}
-
-JSON::Array *JSON::Object::get_array(std::string &key)
-{
-    return _get(key.c_str(), true, JSON::ARRAY)->_array;
+    return _get(key.c_str(), JSON::OBJECT)->_object;
 }
 
 std::string &JSON::Object::get_string(std::string &key)
 {
-    return *_get(key.c_str(), true, JSON::STRING)->_string;
+    return *_get(key.c_str(), JSON::STRING)->_string;
 }
 
 const char *JSON::Object::get_cstring(std::string &key)
 {
-    return _get(key.c_str(), true, JSON::STRING)->_string->c_str();
+    return _get(key.c_str(), JSON::STRING)->_string->c_str();
 }
 
 double JSON::Object::get_number(std::string &key)
 {
-    return _get(key.c_str(), true, JSON::NUMBER)->_number;
+    return _get(key.c_str(), JSON::NUMBER)->_number;
 }
 
 bool JSON::Object::get_boolean(std::string &key)
 {
-    return _get(key.c_str(), true, JSON::BOOLEAN)->_boolean;
+    return _get(key.c_str(), JSON::BOOLEAN)->_boolean;
 }
 
 JSON::Type JSON::Object::get_type(std::string &key)
 {
-    return _get(key.c_str(), false, JSON::JSON_NULL)->_type;
+    return _get(key.c_str(), JSON::JSON_NULL)->_type;
+}
+
+JSON::_Node *JSON::Object::_get_by_index(int index, JSON::Type expected_type)
+{
+    if (!_is_array)
+    {
+        return _get(std::to_string(index).c_str(), JSON::OBJECT);
+    }
+
+    if (index < 0 || (size_t)index >= _size)
+    {
+        throw InvalidIndexException(index);
+    }
+
+    if (expected_type && _ord[index]->_type != expected_type)
+    {
+        std::string s = std::to_string(index);
+        throw WrongTypeException(s, expected_type, _ord[index]->_type);
+    }
+
+    return _ord[index];
+}
+
+JSON::Object *JSON::Object::get_object(int index)
+{
+    return _get_by_index(index, JSON::OBJECT)->_object;
+}
+
+std::string &JSON::Object::get_string(int index)
+{
+    return *_get_by_index(index, JSON::STRING)->_string;
+}
+
+const char *JSON::Object::get_cstring(int index)
+{
+    return _get_by_index(index, JSON::STRING)->_string->c_str();
+}
+
+double JSON::Object::get_number(int index)
+{
+    return _get_by_index(index, JSON::NUMBER)->_number;
+}
+
+bool JSON::Object::get_boolean(int index)
+{
+    return _get_by_index(index, JSON::BOOLEAN)->_boolean;
+}
+
+JSON::Type JSON::Object::get_type(int index)
+{
+    return _get_by_index(index, JSON::JSON_NULL)->_type;
 }
 
 bool JSON::Object::is_object(const char *key)
 {
     return get_type(key) == JSON::OBJECT;
-}
-
-bool JSON::Object::is_array(const char *key)
-{
-    return get_type(key) == JSON::ARRAY;
 }
 
 bool JSON::Object::is_string(const char *key)
@@ -699,11 +752,6 @@ bool JSON::Object::is_null(const char *key)
 bool JSON::Object::is_object(std::string &key)
 {
     return get_type(key) == JSON::OBJECT;
-}
-
-bool JSON::Object::is_array(std::string &key)
-{
-    return get_type(key) == JSON::ARRAY;
 }
 
 bool JSON::Object::is_string(std::string &key)
@@ -748,14 +796,19 @@ std::string JSON::Object::to_string(unsigned int indent, unsigned int depth)
         return tabzero + "{}";
     }
 
-    std::string repr = tabzero + '{';
+    std::string repr = tabzero + (_is_array ? '[' : '{');
 
     for (auto iter = begin();;)
     {
         repr += linesep;
         repr += tabone;
-        repr += _dump_string(*iter);
-        repr += ": ";
+
+        if (!_is_array)
+        {
+            repr += _dump_string(*iter);
+            repr += ": ";
+        }
+
         switch (get_type(*iter))
         {
         case JSON::JSON_NULL:
@@ -763,9 +816,6 @@ std::string JSON::Object::to_string(unsigned int indent, unsigned int depth)
             break;
         case JSON::OBJECT:
             repr += &get_object(*iter)->to_string(indent, depth + 1)[indent * (depth + 1)];
-            break;
-        case JSON::ARRAY:
-            repr += &get_array(*iter)->to_string(indent, depth + 1)[indent * (depth + 1)];
             break;
         case JSON::STRING:
         {
@@ -794,7 +844,7 @@ std::string JSON::Object::to_string(unsigned int indent, unsigned int depth)
         }
     }
 
-    repr += linesep + tabzero + '}';
+    repr += linesep + tabzero + (_is_array ? ']' : '}');
     return repr;
 }
 
@@ -804,60 +854,38 @@ JSON::Object::Iterator JSON::Object::begin()
     {
         return end();
     }
-
-    size_t index = 0;
-    for (; _map[index]->_key == NULL; index++)
-        ;
-
-    return JSON::Object::Iterator(_size, index, _map, _map[index]);
+    else
+    {
+        return JSON::Object::Iterator(_ord);
+    }
 }
 
 JSON::Object::Iterator JSON::Object::end()
 {
-    return JSON::Object::Iterator(_size, _size, _map, NULL);
+    return JSON::Object::Iterator(_ord + _size);
 }
 
-JSON::Object::Iterator::Iterator(size_t size, size_t index, JSON::_Node **map, JSON::_Node *node)
+JSON::Object::Iterator::Iterator(JSON::_Node **p)
 {
-    _size = size;
-    _index = index;
-    _map = map;
-    _node = node;
+    _p = p;
 }
 
 JSON::Object::Iterator &JSON::Object::Iterator::operator++()
 {
-    if (_node->_next != NULL)
-    {
-        _node = _node->_next;
-        return *this;
-    }
-
-    while (++_index < _size)
-    {
-        if (_map[_index] != NULL)
-        {
-            _node = _map[_index];
-            return *this;
-        }
-    }
-
-    _node = NULL;
+    ++_p;
     return *this;
 }
 
 JSON::Object::Iterator JSON::Object::Iterator::operator++(int)
 {
-    auto prev = JSON::Object::Iterator(_size, _index, _map, _node);
+    JSON::Object::Iterator prev = JSON::Object::Iterator(_p);
     ++(*this);
     return prev;
 }
 
 bool JSON::Object::Iterator::operator==(const JSON::Object::Iterator &other)
 {
-    return _map == other._map &&
-           _node == other._node &&
-           _index == other._index;
+    return _p == other._p;
 }
 
 bool JSON::Object::Iterator::operator!=(const JSON::Object::Iterator &other)
@@ -867,349 +895,7 @@ bool JSON::Object::Iterator::operator!=(const JSON::Object::Iterator &other)
 
 std::string &JSON::Object::Iterator::operator*()
 {
-    return *_node->_key;
-}
-
-/*
- * Array
- */
-JSON::Array::Array(const char *s)
-{
-    _initialize(s);
-}
-
-JSON::Array::Array(std::string &s)
-{
-    _initialize(s.c_str());
-}
-
-JSON::Array::Array(const char *s, const char **r)
-{
-    *r = _initialize(s);
-}
-
-const char *JSON::Array::_initialize(const char *s)
-{
-    int line = 1;
-    std::vector<JSON::_Node *> nodes;
-
-    if (s == NULL)
-    {
-        throw DecodeException(0);
-    }
-
-    s = _cstring_next_non_whitespace(s, &line);
-    if (*s != '[')
-    {
-        throw JSON::DecodeException(line);
-    }
-
-    s = _cstring_next_non_whitespace(s + 1, &line);
-    if (*s == ']')
-    {
-        _list = new JSON::_Node *[0];
-        _size = 0;
-        return s + 1;
-    }
-
-    while (true)
-    {
-        JSON::_Node *node = new JSON::_Node();
-        switch (*s)
-        {
-        case 't':
-            s = _JSON_CONSUME_TRUE(s, line);
-            node->_type = JSON::BOOLEAN;
-            node->_boolean = true;
-            break;
-        case 'f':
-            s = _JSON_CONSUME_FALSE(s, line);
-            node->_type = JSON::BOOLEAN;
-            node->_boolean = false;
-            break;
-        case 'n':
-            s = _JSON_CONSUME_NULL(s, line);
-            node->_type = JSON::JSON_NULL;
-            break;
-        case '"':
-            s = _json_consume_string(s, &node->_string, line);
-            node->_type = JSON::STRING;
-            break;
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-        case '8':
-        case '9':
-        case '-':
-            s = _json_consume_number(s, &node->_number, line);
-            node->_type = JSON::NUMBER;
-            break;
-        case '{':
-            node->_type = JSON::OBJECT;
-            node->_object = new Object(s, &s);
-            break;
-        case '[':
-            node->_type = JSON::ARRAY;
-            node->_array = new Array(s, &s);
-            break;
-
-        default:
-            throw JSON::DecodeException(line);
-        }
-
-        node->_next = NULL;
-        nodes.push_back(node);
-
-        s = _cstring_next_non_whitespace(s, &line);
-        if (*s == ']')
-        {
-            s++;
-            break;
-        }
-        if (*s != ',')
-        {
-            throw JSON::DecodeException(line);
-        }
-
-        s = _cstring_next_non_whitespace(s + 1, &line);
-    }
-
-    // Transfer vector to array
-    _size = nodes.size();
-    _list = new JSON::_Node *[_size];
-    for (size_t i = 0; i < _size; i++)
-    {
-        _list[i] = nodes[i];
-    }
-
-    return s;
-}
-
-JSON::Array::Array(const JSON::Array &other)
-{
-    _size = other._size;
-    _list = new JSON::_Node *[_size];
-
-    for (size_t i = 0; i < _size; i++)
-    {
-        _list[i] = new JSON::_Node(*other._list[i]);
-    }
-}
-
-JSON::Array::~Array()
-{
-    for (size_t i = 0; i < _size; i++)
-    {
-        delete _list[i];
-    }
-
-    delete[] _list;
-}
-
-size_t JSON::Array::size()
-{
-    return _size;
-}
-
-JSON::_Node *JSON::Array::_get(size_t i, bool check_type, JSON::Type expected_type)
-{
-    if (i >= _size)
-    {
-        throw InvalidIndexException(i);
-    }
-
-    if (_list[i]->_type == expected_type || !check_type)
-    {
-        return _list[i];
-    }
-    else
-    {
-        throw WrongTypeException(std::to_string(i).c_str(), expected_type, _list[i]->_type);
-    }
-}
-
-JSON::Object *JSON::Array::get_object(size_t i)
-{
-    return _get(i, true, JSON::OBJECT)->_object;
-}
-
-JSON::Array *JSON::Array::get_array(size_t i)
-{
-    return _get(i, true, JSON::ARRAY)->_array;
-}
-
-const char *JSON::Array::get_cstring(size_t i)
-{
-    return _get(i, true, JSON::STRING)->_string->c_str();
-}
-
-std::string &JSON::Array::get_string(size_t i)
-{
-    return *_get(i, true, JSON::STRING)->_string;
-}
-
-double JSON::Array::get_number(size_t i)
-{
-    return _get(i, true, JSON::NUMBER)->_number;
-}
-
-bool JSON::Array::get_boolean(size_t i)
-{
-    return _get(i, true, JSON::BOOLEAN)->_boolean;
-}
-
-JSON::Type JSON::Array::get_type(size_t i)
-{
-    return _get(i, false, JSON::JSON_NULL)->_type;
-}
-
-bool JSON::Array::is_object(size_t i)
-{
-    return get_type(i) == JSON::OBJECT;
-}
-
-bool JSON::Array::is_array(size_t i)
-{
-    return get_type(i) == JSON::ARRAY;
-}
-
-bool JSON::Array::is_string(size_t i)
-{
-    return get_type(i) == JSON::STRING;
-}
-
-bool JSON::Array::is_number(size_t i)
-{
-    return get_type(i) == JSON::NUMBER;
-}
-
-bool JSON::Array::is_boolean(size_t i)
-{
-    return get_type(i) == JSON::BOOLEAN;
-}
-
-bool JSON::Array::is_null(size_t i)
-{
-    return get_type(i) == JSON::JSON_NULL;
-}
-
-std::string JSON::Array::to_string()
-{
-    return to_string(0, 0);
-}
-
-std::string JSON::Array::to_string(unsigned int indent)
-{
-    return to_string(indent, 0);
-}
-
-JSON::Array::Iterator JSON::Array::begin()
-{
-    return JSON::Array::Iterator(_list, _list);
-}
-
-JSON::Array::Iterator JSON::Array::end()
-{
-    return JSON::Array::Iterator(_list, _list + _size);
-}
-
-std::string JSON::Array::to_string(unsigned int indent, unsigned int depth)
-{
-    std::string tabzero(indent * depth, ' ');
-    std::string tabone(indent * (depth + 1), ' ');
-    std::string linesep = indent == 0 ? "" : "\r\n";
-
-    // Construct string
-    if (_size == 0)
-    {
-        return tabzero + "[]";
-    }
-
-    std::string repr = tabzero + '[';
-    for (auto iter = begin();;)
-    {
-        repr += linesep;
-        repr += tabone;
-
-        switch (get_type(*iter))
-        {
-        case JSON::JSON_NULL:
-            repr += "null";
-            break;
-        case JSON::OBJECT:
-            repr += &get_object(*iter)->to_string(indent, depth + 1)[indent * (depth + 1)];
-            break;
-        case JSON::ARRAY:
-            repr += &get_array(*iter)->to_string(indent, depth + 1)[indent * (depth + 1)];
-            break;
-        case JSON::STRING:
-        {
-            std::string s = get_string(*iter);
-            repr += _dump_string(s);
-            break;
-        }
-        case JSON::NUMBER:
-            repr += std::to_string(get_number(*iter));
-            break;
-        case JSON::BOOLEAN:
-            repr += get_boolean(*iter) ? "true" : "false";
-            break;
-        default:
-            throw JSON::UnknownInternalException();
-            break;
-        }
-
-        if (++iter != end())
-        {
-            repr += ", ";
-        }
-        else
-        {
-            break;
-        }
-    }
-
-    repr += linesep + tabzero + ']';
-    return repr;
-}
-
-JSON::Array::Iterator::Iterator(JSON::_Node **begin, JSON::_Node **node)
-{
-    _begin = begin;
-    _node = node;
-}
-
-JSON::Array::Iterator &JSON::Array::Iterator::operator++()
-{
-    ++_node;
-    return *this;
-}
-
-JSON::Array::Iterator JSON::Array::Iterator::operator++(int)
-{
-    auto prev = JSON::Array::Iterator(_begin, _node);
-    ++(*this);
-    return prev;
-}
-
-bool JSON::Array::Iterator::operator==(const JSON::Array::Iterator &other)
-{
-    return _node == other._node;
-}
-
-bool JSON::Array::Iterator::operator!=(const JSON::Array::Iterator &other)
-{
-    return _node != other._node;
-}
-
-size_t JSON::Array::Iterator::operator*()
-{
-    return _node - _begin;
+    return *(*_p)->_key;
 }
 
 /*
@@ -1241,7 +927,7 @@ JSON::InvalidKeyException::InvalidKeyException(const char *key)
     strcpy(_message, message.c_str());
 }
 
-JSON::InvalidIndexException::InvalidIndexException(size_t index)
+JSON::InvalidIndexException::InvalidIndexException(int index)
 {
     std::string message;
     message += "Attempted to access an element at index ";
@@ -1258,6 +944,16 @@ JSON::InvalidIndexException::InvalidIndexException(size_t index)
 }
 
 JSON::WrongTypeException::WrongTypeException(const char *key, JSON::Type expected, JSON::Type actual)
+{
+    _initialize(key, expected, actual);
+}
+
+JSON::WrongTypeException::WrongTypeException(std::string &key, JSON::Type expected, JSON::Type actual)
+{
+    _initialize(key.c_str(), expected, actual);
+}
+
+void JSON::WrongTypeException::_initialize(const char *key, JSON::Type expected, JSON::Type actual)
 {
     std::string message;
     message += "Attempted to access an element with key \"";

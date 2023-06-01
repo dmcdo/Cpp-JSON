@@ -2,14 +2,14 @@
 A simple JSON implentation in C++.
 
 ## Usage
-The `JSON::Object` and `JSON::Array` classes are instantiated by calling the constructor with an appropriate JSON string.
+The `JSON::Object` class is instantiated by calling the constructor with an appropriate JSON string.
 ```cpp
 JSON::Object obj = JSON::Object("{\"a\": 1, \"b\": 2}");
-JSON::Array arr = JSON::Array("[\"Hello\", \"World\"]");
+JSON::Object arr = JSON::Array("[\"Hello\", \"World\"]");
 ```
 
 ## Data Retrieval
-In order to reconcile JSON's type flexibility with C++'s strict static typing, several different "get" methods are provided by the `JSON::Object` and `JSON::Array` classes depending on the type of data you are expecting at a given key.
+In order to reconcile JSON's type flexibility with C++'s strict static typing, several different "get" methods are provided by the `JSON::Object` class depending on the type of data you are expecting at a given key.
 
 ```cpp
 double a = obj.get_number("a"); // Object values are accessed by their key
@@ -23,14 +23,14 @@ assert arr.get_type(1) == JSON::STRING;
 ```
 
 ## Iteration
-Object keys are not ordered, so the order they are iterated over is arbitrary. Arrays indexes will always be iterated over in order.
+Object keys are iterated in the order they are declared in the initial JSON string.
 ```cpp
 for (string key : obj)
 {
     cout << key << ": " << obj.get_number(key) << endl;
 }
 
-for (size_t index : arr)
+for (string index : arr)
 {
     cout << arr.get_string(index) << ' ';
 }
