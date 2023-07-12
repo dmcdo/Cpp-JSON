@@ -5,7 +5,7 @@ A simple JSON implentation in C++.
 The `JSON::Object` class is instantiated by calling the constructor with an appropriate JSON string.
 ```cpp
 JSON::Object obj = JSON::Object("{\"a\": 1, \"b\": 2}");
-JSON::Object arr = JSON::Array("[\"Hello\", \"World\"]");
+JSON::Object arr = JSON::Object("[\"Hello\", \"World\"]");
 ```
 
 ## Data Retrieval
